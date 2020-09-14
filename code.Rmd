@@ -1,0 +1,271 @@
+---
+title: "HELOC Data Visualization"
+output:
+  pdf_document: default
+  pdf: default
+---
+# Executive Summary
+The scope of this Data Visualization project is to understand whether we are lending the right amount of money to the right people. It is not senisable to check the rationality of loan on a individual basis, considering the manual work it will cost. The logic of my analysis is to start with analyzing outliers and anomalies in the dataset, to dive deeper on why they are so deviated from other data points. After analysis outliers, we will analyze the rest majority of accounts on a group basis, which means we will use clustering method to segment the customers into several different categories. And then by visualizing each segment, we can understand how we are lending money to each customer now.
+
+# Exploratory Data Analysis
+## Data Processing 
+```{r}
+library(ggplot2)
+library(ggpubr)
+heloc <- read.csv("Data Visualization.csv")
+str(heloc)
+```
+```{r}
+# remove the dollar sign and comma
+heloc$Current.Balance = as.numeric(gsub("[,$]", "", heloc$Current.Balance))
+heloc$Loan.Limit.Amount = as.numeric(gsub("[,$]", "", heloc$Loan.Limit.Amount))
+summary(heloc)
+```
+```{r}
+# The distributions of Current Balance, Credit Score and Debt to Income
+boxplot(heloc$Current.Balance, main = "Current Balance")
+boxplot(heloc$CREDIT.SCORE, main = "Credit Score")
+boxplot(heloc$DEBT.TO.INCOME, main = "Debt to Income")
+
+```
+
+When we are lending customers loan, the Loan Limit Amount, Loan-to-Value (LTV) Ratio and Interest Rate are three important metrics. Intuitively, we should lend more loan with low Interest Rate to a customer who has a relatively high Credit Score, low Debit-to-Income (DTI) Ratio, reasonable Current Balance Amount and ideally better with a long history with us.
+
+In our case, since we don't have very discrete formula of how we came up with th Loan Limit Amount as well as the LTV Ratio and Interest Rate, it's hard to say whether we give the most reasonable number to each of the customers. On the other hands, we still can identify data points which are outliers, regarding to Loan Limit Amount and LTV Ratio and Interest Rate, in the whole dataset.
+
+Therefore, we will start with analyzing those data points which deviate a lot from the general distribution of the dataset. That's being said, the first thing we want to do is to figure out whether those outliers are showing for some specific and logical reasons.
+
+Here we use box plot and scatter plot to locate evident outliers. In the box plots, thoese data points that are located outside and far away from the boxes are outliers. For the scatter plot, we can tell that there is a reasonable distribution of Loan Limit Amount versus the current balance, so as the LTV Ratio versus the current balance. Most of the data points in "Loan Limit Amount vs. Current Balance" plot and "Loan-to-Ratio vs. Current Balance" plot are limited in a triangle area. Those data points that are located outside the triangle are the outliers.
+
+```{r}
+p1 <-ggplot(heloc, aes(x = Score.Range, y = Loan.Limit.Amount, color = Score.Range)) + geom_boxplot() + labs(title="Loan Limit Amount vs. Score Range",x = "Score Range", y = "Loan Limit Amount")
+
+p2 <-ggplot(heloc, aes(x = Score.Range, y = ORIGINAL.L.V, color = Score.Range)) + geom_boxplot()  + labs(title="Loan-to-Value Ratio vs. Score Range",x = "Score Range", y = "Loan-to-Value Ratio")
+
+p3 <-ggplot(heloc, aes(x = Score.Range, y = Int.Rate, color = Score.Range)) + geom_boxplot()  + labs(title="Interest Rate vs. Score Range",x = "Score Range", y = "Interest Rate")
+
+p4 <-ggplot(heloc, aes(x = DTI.Range, y = Loan.Limit.Amount, color = DTI.Range)) + geom_boxplot() + labs(title="Loan Limit Amount vs. DTI Range",x = "DTI Range", y = "Loan Limit Amount")
+
+p5 <-ggplot(heloc, aes(x = DTI.Range, y = ORIGINAL.L.V, color = DTI.Range)) + geom_boxplot()  + labs(title="Loan-to-Value Ratio vs. DTI Range",x = "DTI Range", y = "Loan-to-Value Ratio")
+
+p6 <-ggplot(heloc, aes(x = DTI.Range, y = Int.Rate, color = DTI.Range)) + geom_boxplot()  + labs(title="Interest Rate vs. DTI Range",x = "DTI Range", y = "Interest Rate")
+
+p7 <- ggplot(heloc,aes(x = Current.Balance,y = Loan.Limit.Amount)) + geom_point() + labs(title="Loan Limit Amount vs. Current Balance",x = "Current Balance", y = "Loan Limit Amount")
+
+p8 <- ggplot(heloc,aes(x = Current.Balance,y = ORIGINAL.L.V)) + geom_point() + labs(title="Loan-to-Value Ratio vs. Current Balance",x = "Current Balance", y = "Loan-to-Value Ratio")
+
+p9 <- ggplot(heloc,aes(x = Current.Balance,y = Int.Rate)) + geom_point() + labs(title="Interest Rate vs. Current Balance",x = "Current Balance", y = "Interest Rate")
+
+
+p1
+p2
+p3
+p4
+p5
+p6
+p7
+p8
+p9
+
+```
+
+## Outliers Analysis
+### Outliers in Loan Limit Amount vs.Credit Score Range
+After finding out those outilers' existence, we need to identify those account record. They are treated as outliers under single dimension, but still we need to check other dimensions simultaneously.
+```{r}
+lla_outliers_score7 <- heloc[(heloc$Score.Range=="7 No Score") & (heloc$Loan.Limit.Amount>=150000),]
+lla_outliers_score7
+
+lla_outliers_score5 <- heloc[(heloc$Score.Range=="5 600-639") & (heloc$Loan.Limit.Amount>=100000),]
+lla_outliers_score5
+
+lla_outliers_score4 <- heloc[(heloc$Score.Range=="4 640-679") & (heloc$Loan.Limit.Amount>100000),]
+lla_outliers_score4
+
+lla_outliers_score3 <- heloc[(heloc$Score.Range=="3 680-719") & (heloc$Loan.Limit.Amount>150000),]
+lla_outliers_score3
+
+lla_outliers_score2 <- heloc[(heloc$Score.Range=="2 720-739") & (heloc$Loan.Limit.Amount>=200000),]
+lla_outliers_score2
+
+lla_outliers_score1 <- heloc[(heloc$Score.Range=="1 >=740") & (heloc$Loan.Limit.Amount>400000),]
+lla_outliers_score1
+```
+When it comes to the outliers in Loan Limit Amount by Credit Score Range category, there are six accounts that need more consideration:
+1. 649. This account doesn't have any balance and the Credit Score is 0, yet the Loan Limit Amount is very high in this score range category.
+2. 1041. Generally speaking, we have observed that the Loan Limit Amount and Current Balance is somehow very similar, if this specific customer have a decent Credit Score and relative low DTI Ratio. But for this account, the Loan Limit Amount is extremely high considering its Credit Score and DTI level. Neither its Credit Score is good nor its DTI level is very desirable.
+3. 428. The account 428 has a relative similar balance level with account 250, but the Credit Score of 428 is lower than account 250 and the DTI of 428 is higher than account 250. Under this situation, account 428 has almost double amount of Loan Limit than account 250. My suggestion is to dig deeper on whether we give a reasonable Loan Limit Amount to account 428.
+4. 35. Similar to what is mentioned in bullet point 3, account 35 and account 8 has the same 0 balance. However, the Loan Limit Amount of account 35 is higher than account 8 when account has lower Credit Score and higher DTI Ratio comparing to account 8. So, we need to dive deeper about account 35.
+5. 498. Same reason for account 498 when comparing to account 712.
+6. 987. Same reason for account 498 when comparing to account 712.
+
+### Outliers in Interest Rate vs.Credit Score Range
+```{r}
+ir_outliers <- heloc[heloc$Int.Rate != 4,]
+```
+When it comes to the Interest Rate, one thing that I found is that Interest Rate is mainly associated with Term. Even the outliers in the plot also accord with rule of higher Interest Rate corresponding to longer Term. Thus, the Interest Rate makes sense in nearly all the observations.
+
+### Outliers in Loan Limit Amount vs.DTI Range
+```{r}
+lla_outliers_dti1 <- heloc[(heloc$DTI.Range=="1 >50.01") & (heloc$Loan.Limit.Amount>=400000),]
+lla_outliers_dti1
+
+lla_outliers_dti2 <- heloc[(heloc$DTI.Range=="2 43.01-50.00") & (heloc$Loan.Limit.Amount>=400000),]
+lla_outliers_dti2
+
+lla_outliers_dti3 <- heloc[(heloc$DTI.Range=="3 40.01-43.00") & (heloc$Loan.Limit.Amount>=200000),]
+lla_outliers_dti3
+
+lla_outliers_dti4 <- heloc[(heloc$DTI.Range=="4 35.01 - 40.00") & (heloc$Loan.Limit.Amount>200000),]
+lla_outliers_dti4
+
+lla_outliers_dti5 <- heloc[(heloc$DTI.Range=="5 30.01 - 35.00") & (heloc$Loan.Limit.Amount>200000),]
+lla_outliers_dti5
+
+lla_outliers_dti6 <- heloc[(heloc$DTI.Range=="6 <= 30") & (heloc$Loan.Limit.Amount>=270000),]
+lla_outliers_dti6
+
+lla_outliers_dti7 <- heloc[(heloc$DTI.Range=="No DTI") & (heloc$Loan.Limit.Amount>100000),]
+lla_outliers_dti7
+```
+Here are some accounts that seems to have an abnormal Loan Limit Amount by DTI category:
+1. 9. Comparing to account 101 and 586, it has lowest Credit Score and Highest DTI, but still it has the highest Loan Limit Amount among all three.
+2. 1041. This account has the highest Loan Limit Amount in the "5" DTI Range while it has the lowest Credit Score and a relatively high DTI value.
+3. 35. Comparing to account 8.
+4. 428. This account has a very high Loan Limit Amount considering its Balance. It neither has a very high Credit Score nor a low DTI Ratio, but still one of the highest Loan Limit Amount among this group.
+
+### Outliers in Loan-to-Value Ratio vs.DTI Range
+```{r}
+lti_outliers_dti1 <- heloc[(heloc$DTI.Range=="1 >50.01") & (heloc$ORIGINAL.L.V <= 25),]
+lti_outliers_dti1
+```
+
+### Outliers in Loan Limit Amount vs.Current Balance
+```{r}
+lla_outliers_bal <- heloc[(heloc$Loan.Limit.Amount >= 300000) | (heloc$Loan.Limit.Amount == 0),]
+lla_outliers_bal
+```
+1. 35. Comparing to account 8.
+2. 584. It has a zero Loan Limit Amount.
+3. 1041. The Credit Score is relatively low, but still it has a high Loan Limit Amount.
+
+### Outliers in Loan-to-Value Ratio vs.Current Balance
+```{r}
+ltv_outliers_bal_1 <- heloc[(heloc$Current.Balance >= 100000) & (heloc$ORIGINAL.L.V <= 12.5),]
+ltv_outliers_bal_1
+
+ltv_outliers_bal_2 <- heloc[(heloc$Current.Balance >= 150000) & (heloc$ORIGINAL.L.V <= 18.75),]
+ltv_outliers_bal_2
+
+ltv_outliers_bal_3 <- heloc[(heloc$Current.Balance >= 200000) & (heloc$ORIGINAL.L.V <= 25),]
+ltv_outliers_bal_3
+
+ltv_outliers_bal_4 <- heloc[(heloc$Current.Balance >= 400000) & (heloc$ORIGINAL.L.V <= 75),]
+ltv_outliers_bal_4
+
+ltv_outliers_bal_5 <- heloc[(heloc$Current.Balance >= 600000) & (heloc$ORIGINAL.L.V <= 87.5),]
+ltv_outliers_bal_5
+```
+The outliers in scatter plots seems to be reasonable, not very extreme.
+
+
+## Customer Segmentation Analysis
+```{r}
+library(scatterplot3d)
+library(RColorBrewer)
+library(dplyr)
+library(tidyr)
+
+scatterplot3d(heloc %>% select(CREDIT.SCORE, DEBT.TO.INCOME, Current.Balance),
+       xlab = "Credit Score",
+       ylab = "Debt to Income",
+       zlab = "Current Balance",
+       pch = 16) 
+
+# Remove the outliers in scatter plot
+
+scatterplot3d(heloc %>% select(CREDIT.SCORE, DEBT.TO.INCOME, Current.Balance) %>% filter(CREDIT.SCORE >= 575, 
+                                                                                              DEBT.TO.INCOME <= 59,
+                                                                                              Current.Balance <= 14800),
+       xlab = "Credit Score",
+       ylab = "Debt to Income",
+       zlab = "Current Balance",
+       pch = 16) 
+```
+
+### Clustering
+The code below shows a standard process of clustering data. In this dataset, based on Current Balance, Credit Score, Debt-to-Income Ratio variables, it is best to segement into four clusters.
+```{r}
+# Normalization
+bal_sc_dti_main <- heloc%>% filter(CREDIT.SCORE >= 575, DEBT.TO.INCOME <= 59, Current.Balance <= 14800)
+m <- apply(bal_sc_dti_main[c("CREDIT.SCORE", "DEBT.TO.INCOME", "Current.Balance")],2,mean)
+s <- apply(bal_sc_dti_main[c("CREDIT.SCORE", "DEBT.TO.INCOME", "Current.Balance")],2,sd)
+bal_sc_dti_main_nor <- scale(bal_sc_dti_main[c("CREDIT.SCORE", "DEBT.TO.INCOME", "Current.Balance")],m,s)
+
+# Scree plot to decide how many clusters
+wss <- (nrow(bal_sc_dti_main_nor) - 1) * sum(apply(bal_sc_dti_main_nor,2,var))
+for (i in 2:20) wss[i] <- sum(kmeans(bal_sc_dti_main_nor, centers = i)$withinss)
+plot(1:20, wss, type = "b", xlab = "Number of Clusters", ylab = "Within Group SS")
+
+kc <- kmeans(bal_sc_dti_main_nor, 4)
+bal_sc_dti_main <- as.data.frame(cbind(bal_sc_dti_main, Cluster = as.factor(kc$cluster)))
+bal_sc_dti_main_nor <- as.data.frame(cbind(bal_sc_dti_main_nor, Cluster = as.factor(kc$cluster)))
+
+scatterplot3d(bal_sc_dti_main_nor,
+       xlab = "Credit Score",
+       ylab = "Debt to Income",
+       zlab = "Current Balance",
+       pch = 16,
+       color = colors[as.numeric(bal_sc_dti_main_nor$Cluster)]) 
+
+```
+
+After segment all accounts in this dataset into four different category, we plotted box plots and histogram to check the distributions of Loan Limit Amount, Loan-to-Value Ratio for each segment. The point of clustering these accounts to four different clusters is that it helps to find the most similar customers. With in each customer segment, we can say that the homogeneity is very high. As for different segment, the heterogeneity will be very high. With that being said, to determine whether we have gave the right customers with right quote, we need to check the Loan Limit Amount distribution and Loan-to-Value distribution. The Loan limit Amount for each segment shouldn't have a large range. On the other hand, we should see diversity in Loan-to-Ratio, that means a relatively normal distribution of Loan-to-Value Ratio under each segment.
+```{r}
+p10 <-ggplot(bal_sc_dti_main, aes(x = Cluster, y = Loan.Limit.Amount, color = Cluster)) + geom_boxplot() + labs(title="Loan Limit Amount vs. Cluster",x = "Cluster", y = "Loan Limit Amount")
+p11 <-ggplot(bal_sc_dti_main, aes(x = Cluster, y = ORIGINAL.L.V, color = Cluster)) + geom_boxplot() + labs(title="Loan to Value Ratio vs. Cluster",x = "Cluster", y = "Loan to Value Ratio")
+
+p12 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 1), aes(x = Loan.Limit.Amount)) + geom_histogram(fill= "deepskyblue1") + labs(title="Loan Limit Amount Distribution for Cluster 1",x = "Loan Limit Amount", y = "count")
+p13 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 2), aes(x = Loan.Limit.Amount)) + geom_histogram(fill= "deepskyblue1") + labs(title="Loan Limit Amount Distribution for Cluster 2",x = "Loan Limit Amount", y = "count")
+p14 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 3), aes(x = Loan.Limit.Amount)) + geom_histogram(fill= "deepskyblue1") + labs(title="Loan Limit Amount Distribution for Cluster 3",x = "Loan Limit Amount", y = "count")
+p15 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 4), aes(x = Loan.Limit.Amount)) + geom_histogram(fill= "deepskyblue1") + labs(title="Loan Limit Amount Distribution for Cluster 4",x = "Loan Limit Amount", y = "count")
+
+p16 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 1), aes(x = ORIGINAL.L.V)) + geom_histogram(fill= "palegreen3") + labs(title="Loan to Value Ratio Distribution for Cluster 1",x = "Loan to Value Ratio", y = "count")
+p17 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 2), aes(x = ORIGINAL.L.V)) + geom_histogram(fill= "palegreen3") + labs(title="Loan to Value Ratio Distribution for Cluster 2",x = "Loan to Value Ratio", y = "count")
+p18 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 3), aes(x = ORIGINAL.L.V)) + geom_histogram(fill= "palegreen3") + labs(title="Loan to Value Ratio Distribution for Cluster 3",x = "Loan to Value Ratio", y = "count")
+p19 <- ggplot(bal_sc_dti_main %>% filter(Cluster == 4), aes(x = ORIGINAL.L.V)) + geom_histogram(fill= "palegreen3") + labs(title="Loan to Value Ratio Distribution for Cluster 4",x = "Loan to Value Ratio", y = "count")
+
+p10
+p11
+p12
+p13
+p14
+p15
+p16
+p17
+p18
+p19
+```
+### Customer Segment Profile
+```{r}
+cluster1 <- bal_sc_dti_main %>% filter(Cluster == 1)
+cluster2 <- bal_sc_dti_main %>% filter(Cluster == 2)
+cluster3 <- bal_sc_dti_main %>% filter(Cluster == 3)
+cluster4 <- bal_sc_dti_main %>% filter(Cluster == 4)
+#summary(cluster1)
+#summary(cluster2)
+#summary(cluster3)
+summary(cluster4)
+```
+To utilize this segmentation, we can try to profile the.
+- Customer Segment 1: 
+A mean Current Balance of 10606, a mean Credit Score of 775, a mean DTI of 28.81. The Mean Loan Limit Amount id 44200, the LTV Ratio range from 4% to 93%.
+- Customer Segment 2: 
+A mean Current Balance of 5534, a mean Credit Score of 679, a mean DTI of 23.13. The Mean Loan Limit Amount id 36723, the LTV Ratio range from 5% to 91%.
+- Customer Segment 3: 
+A mean Current Balance of 978, a mean Credit Score of 789.7, a mean DTI of 16.16. The Mean Loan Limit Amount id 69116, the LTV Ratio range from 0.81% to 90%.
+- Customer Segment 4: 
+A mean Current Balance of 635.6, a mean Credit Score of 776.8, a mean DTI of 35.30. The Mean Loan Limit Amount id 95040, the LTV Ratio range from 8% to 90%.
+
+# Conclusion
+The accounts that are having abnormal quote are account 649, 1041, 428, 35, 498, 987, 9, 584, 1041. 
